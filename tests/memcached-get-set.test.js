@@ -47,6 +47,71 @@ describe("Memcached GET SET", function() {
       });
   });
 
+
+  it("touch expiration", function(done) {
+    this.timeout(10000);
+    var memcached = new Memcached(common.servers.single)
+        , message = common.alphabet(256)
+        , testnr = ++global.testnumbers
+        , callbacks = 0;
+
+    memcached.set('test:' + testnr, message, 1, function(error, ok) {
+      ++callbacks;
+
+      assert.ok(!error);
+      ok.should.be.true;
+
+      memcached.get('test:' + testnr, function(error, answer) {
+        ++callbacks;
+
+        assert.ok(!error);
+
+        assert.ok(typeof answer === 'string');
+        answer.should.eql(message);
+
+        setTimeout(function() {
+          memcached.get('test:' + testnr, function(error, answer) {
+            ++callbacks;
+
+            assert.ok(!answer);
+
+            // Key expired ok, now let's try again, only, with a touch.
+            memcached.set('test:' + testnr, message, 1, function(error, ok) {
+              ++callbacks;
+
+              assert.ok(!error);
+              ok.should.be.true;
+
+              setTimeout(function() {
+                memcached.touch('test:' + testnr, 5, function(error, ok) {
+                  ++callbacks;
+
+                  assert.ok(!error);
+                  ok.should.be.true;
+
+                  setTimeout(function() {
+                    memcached.get('test:' + testnr, function(error, answer) {
+                      ++callbacks;
+
+                      assert.ok(!error);
+                      assert.ok(typeof answer === 'string');
+                      answer.should.eql(message);
+
+                      memcached.end();
+                      assert.equal(callbacks, 6);
+                      done();
+                    });
+                  }, 2100);
+                });
+              }, 800);
+            });
+          });
+        }, 2100);
+      });
+    });
+  });
+
+
   /**
    * Set a stringified JSON object, and make sure we only return a string
    * this should not be flagged as JSON object
